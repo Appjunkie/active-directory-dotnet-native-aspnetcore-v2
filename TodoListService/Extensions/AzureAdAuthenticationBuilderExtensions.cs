@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using System;
+using TodoListService.Extensions;
 
 namespace Microsoft.AspNetCore.Authentication
 {
@@ -26,6 +27,7 @@ namespace Microsoft.AspNetCore.Authentication
             public ConfigureAzureOptions(IOptions<AzureAdOptions> azureOptions)
             {
                 _azureOptions = azureOptions.Value;
+                TokenAcquisition.CreateApplication(_azureOptions);
             }
 
             public void Configure(string name, JwtBearerOptions options)

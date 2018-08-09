@@ -34,6 +34,7 @@ using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Security.Claims;
 using System.Threading.Tasks;
+using TodoListService.Extensions;
 using TodoListService.Models;
 
 namespace TodoListService.Controllers
@@ -63,38 +64,16 @@ namespace TodoListService.Controllers
 
         public static async Task<string> CallGraphAPIOnBehalfOfUser()
         {
-            string appKey = "";
-            string clientId = "";
-            string redirectUri = "";
-            string aadInstance = "";
-            string tenant = "";
             string[] scopes = new string[] { "user.read" };
 
-            // TODO: use a naive cache
-            // we use MSAL.NET to get a token On Behalf Of the current user
-            ClientCredential clientCred = new ClientCredential(appKey);
-            string authority = string.Format(CultureInfo.InvariantCulture, aadInstance, tenant);
-            ConfidentialClientApplication application = new ConfidentialClientApplication(clientId, authority, redirectUri, clientCredential: null, userTokenCache: null, appTokenCache: null);
+            // we use MSAL.NET to get a token to call the API On Behalf Of the current user
+            string accessToken = await GetAccessTokenOnBehalfOfUser(scopes);
+            dynamic me = await CallGraphApiOnBehalfOfUser(accessToken);
+            return me.prefered_username;
+        }
 
-            var bootstrapContext = ClaimsPrincipal.Current.Identities.First().BootstrapContext as BootstrapContext;
-            string userName = ClaimsPrincipal.Current.FindFirst(ClaimTypes.Upn) != null ? ClaimsPrincipal.Current.FindFirst(ClaimTypes.Upn).Value : ClaimsPrincipal.Current.FindFirst(ClaimTypes.Email).Value;
-            string userAccessToken = bootstrapContext.Token;
-            UserAssertion userAssertion = new UserAssertion(userAccessToken, "urn:ietf:params:oauth:grant-type:jwt-bearer");
-
-            AuthenticationResult result = null;
-            string userId = ClaimsPrincipal.Current.FindFirst(ClaimTypes.NameIdentifier).Value;
-            string accessToken = null;
-
-            try
-            {
-                result = await application.AcquireTokenOnBehalfOfAsync(scopes, userAssertion);
-                accessToken = result.AccessToken;
-            }
-            catch (MsalException ex)
-            {
-                // TODO process the exception see if this is retryable etc ...
-            }
-
+        private static async Task<dynamic> CallGraphApiOnBehalfOfUser(string accessToken)
+        {
             //
             // Call the Graph API and retrieve the user's profile.
             //
@@ -103,9 +82,31 @@ namespace TodoListService.Controllers
             string json = await client.GetStringAsync("https://graph.microsoft.com/1.0/me");
 
             dynamic me = JsonConvert.DeserializeObject(json);
-            return me.prefered_username;
+            return me;
         }
 
+        private static async Task<string> GetAccessTokenOnBehalfOfUser(string[] scopes)
+        {
+            var bootstrapContext = ClaimsPrincipal.Current.Identities.First().BootstrapContext as BootstrapContext;
+            string userName = ClaimsPrincipal.Current.FindFirst(ClaimTypes.Upn) != null ? ClaimsPrincipal.Current.FindFirst(ClaimTypes.Upn).Value : ClaimsPrincipal.Current.FindFirst(ClaimTypes.Email).Value;
+            string userAccessToken = bootstrapContext.Token;
+            UserAssertion userAssertion = new UserAssertion(userAccessToken, "urn:ietf:params:oauth:grant-type:jwt-bearer");
 
+            string userId = ClaimsPrincipal.Current.FindFirst(ClaimTypes.NameIdentifier).Value;
+            string accessToken = null;
+
+            try
+            {
+                AuthenticationResult result = null;
+                result = await TokenAcquisition.Application.AcquireTokenOnBehalfOfAsync(scopes, userAssertion);
+                accessToken = result.AccessToken;
+            }
+            catch (MsalException ex)
+            {
+                // TODO process the exception see if this is retryable etc ...
+            }
+
+            return accessToken;
+        }
     }
 }
