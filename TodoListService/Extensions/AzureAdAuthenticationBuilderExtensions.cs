@@ -33,18 +33,25 @@ namespace Microsoft.AspNetCore.Authentication
                 options.Audience = _azureOptions.ClientId;
                 options.Authority = $"{_azureOptions.Instance}{_azureOptions.TenantId}/v2.0/";
 
+                TokenValidationParameters tokenValidationParameter = options.TokenValidationParameters;
+
                 // Instead of using the default validation (validating against a single tenant, as we do in line of business apps),
                 // we inject our own multitenant validation logic (which even accepts both V1 and V2 tokens)
-                options.TokenValidationParameters.ValidateIssuer = true;
+                tokenValidationParameter.ValidateIssuer = true;
 
                 // If you want to use the V2 endpoint (that is authority = $"{_azureOptions.Instance}common/v2.0/") 
                 // you'd also want to validate which tenants your Web API accept
                 // in that case you'd have to implement a IssuerValidator and uncomment the following line.
-                options.TokenValidationParameters.IssuerValidator = ValidateIssuer;
+                tokenValidationParameter.IssuerValidator = ValidateIssuer;
+
+                // This is needed so that the Web API can then call another web API with the on-behalf-of flow
+                // in the name of the user
+                tokenValidationParameter.SaveSigninToken = true;
             }
 
             /// <summary>
-            /// Validate the issuer. 
+            /// Validate the issuer so that both Azure AD V1, and Azure AD V2 endpoints are accepted, and for any
+            /// tenant
             /// </summary>
             /// <param name="issuer">Issuer to validate (will be tenanted)</param>
             /// <param name="securityToken">Received Security Token</param>
