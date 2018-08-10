@@ -3,6 +3,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using System;
+using System.IdentityModel.Tokens.Jwt;
+using System.Linq;
 using System.Threading.Tasks;
 using TodoListService.Extensions;
 
@@ -28,7 +30,7 @@ namespace Microsoft.AspNetCore.Authentication
             public ConfigureAzureOptions(IOptions<AzureAdOptions> azureOptions)
             {
                 _azureOptions = azureOptions.Value;
-                TokenAcquisition.CreateApplication(_azureOptions);
+                TokenAcquisition.GetOrCreateApplication(_azureOptions);
             }
 
             public void Configure(string name, JwtBearerOptions options)
@@ -52,15 +54,22 @@ namespace Microsoft.AspNetCore.Authentication
 
                 // In case of authentication failed, give us a chance to understand what was invalid, by looking at the exception.
                 options.Events = new JwtBearerEvents();
-                options.Events.OnAuthenticationFailed = AuthenticationFailed;
+                options.Events.OnAuthenticationFailed = OnAuthenticationFailed;
+                options.Events.OnTokenValidated = OnTokenValidated;
             }
 
-            private async Task AuthenticationFailed(AuthenticationFailedContext context)
+            private Task OnAuthenticationFailed(AuthenticationFailedContext context)
             {
                 string message = context.Exception.Message;
                 throw context.Exception;
             }
-  
+
+            private async Task OnTokenValidated(TokenValidatedContext context)
+            {
+                JwtSecurityToken accessToken = context.SecurityToken as JwtSecurityToken;
+                TokenAcquisition.AddAccountToCache(accessToken);
+            }
+
             public void Configure(JwtBearerOptions options)
             {
                 Configure(Options.DefaultName, options);

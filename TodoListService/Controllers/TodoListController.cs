@@ -66,7 +66,7 @@ namespace TodoListService.Controllers
 
         }
 
-        public static async Task<string> CallGraphAPIOnBehalfOfUser()
+        public async Task<string> CallGraphAPIOnBehalfOfUser()
         {
             string[] scopes = new string[] { "user.read" };
 
@@ -91,18 +91,17 @@ namespace TodoListService.Controllers
 
         private static async Task<string> GetAccessTokenOnBehalfOfUser(string[] scopes)
         {
-            var bootstrapContext = ClaimsPrincipal.Current.Identities.First().BootstrapContext as BootstrapContext;
-            string userName = ClaimsPrincipal.Current.FindFirst(ClaimTypes.Upn) != null ? ClaimsPrincipal.Current.FindFirst(ClaimTypes.Upn).Value : ClaimsPrincipal.Current.FindFirst(ClaimTypes.Email).Value;
-            string userAccessToken = bootstrapContext.Token;
-            UserAssertion userAssertion = new UserAssertion(userAccessToken, "urn:ietf:params:oauth:grant-type:jwt-bearer");
+            var accounts = (await TokenAcquisition.Application.GetAccountsAsync()).ToArray();
 
+
+            string userName = ClaimsPrincipal.Current.FindFirst(ClaimTypes.Upn) != null ? ClaimsPrincipal.Current.FindFirst(ClaimTypes.Upn).Value : ClaimsPrincipal.Current.FindFirst(ClaimTypes.Email).Value;
             string userId = ClaimsPrincipal.Current.FindFirst(ClaimTypes.NameIdentifier).Value;
             string accessToken = null;
-
             try
             {
                 AuthenticationResult result = null;
-                result = await TokenAcquisition.Application.AcquireTokenOnBehalfOfAsync(scopes, userAssertion);
+                IAccount account = await TokenAcquisition.Application.GetAccountAsync(userId);
+                result = await TokenAcquisition.Application.AcquireTokenSilentAsync(scopes, account);
                 accessToken = result.AccessToken;
             }
             catch (MsalException ex)

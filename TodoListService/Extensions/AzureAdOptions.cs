@@ -7,6 +7,6 @@
         public string Instance { get; set; }
         public string Domain { get; set; }
         public string TenantId { get; set; }
-        public string RedirecUrl { get; set; }
+        public string RedirectUri { get; set; }
     }
 }
