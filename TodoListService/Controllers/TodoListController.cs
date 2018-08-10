@@ -21,6 +21,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
  */
+ #define ENABLE_OBO
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Identity.Client;
@@ -55,9 +56,12 @@ namespace TodoListService.Controllers
 
         // POST api/values
         [HttpPost]
-        public void Post([FromBody]TodoItem Todo)
+        public async void Post([FromBody]TodoItem Todo)
         {
             string owner = (User.FindFirst(ClaimTypes.NameIdentifier))?.Value;
+#if ENABLE_OBO
+            string ownerName = await CallGraphAPIOnBehalfOfUser();
+#endif
             todoStore.Add(new TodoItem { Owner = owner, Title = Todo.Title });
 
         }
