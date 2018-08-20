@@ -142,7 +142,8 @@ namespace TodoListClient
             }
             else
             {
-                MessageBox.Show("An error occurred : " + response.ReasonPhrase);
+                string failureDescription = await response.Content.ReadAsStringAsync();
+                MessageBox.Show($"{response.ReasonPhrase}\n {failureDescription}", "An error occurred while getting /api/todolist", MessageBoxButton.OK);
             }
         }
 
@@ -213,7 +214,8 @@ namespace TodoListClient
             }
             else
             {
-                MessageBox.Show("An error occurred : " + response.ReasonPhrase);
+                string failureDescription = await response.Content.ReadAsStringAsync();
+                MessageBox.Show($"{response.ReasonPhrase}\n {failureDescription}", "An error occurred while posting to /api/todolist", MessageBoxButton.OK);
             }
         }
 
