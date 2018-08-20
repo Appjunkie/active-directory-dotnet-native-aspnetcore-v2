@@ -26,11 +26,12 @@ namespace Microsoft.AspNetCore.Authentication
         private class ConfigureAzureOptions : IConfigureNamedOptions<JwtBearerOptions>
         {
             private readonly AzureAdOptions _azureOptions;
+            private readonly ITokenAcquisition _tokenAcquisition;
 
-            public ConfigureAzureOptions(IOptions<AzureAdOptions> azureOptions)
+            public ConfigureAzureOptions(IOptions<AzureAdOptions> azureOptions, ITokenAcquisition tokenAcquisition)
             {
                 _azureOptions = azureOptions.Value;
-                TokenAcquisition.GetOrCreateApplication(_azureOptions);
+                _tokenAcquisition = tokenAcquisition;
             }
 
             public void Configure(string name, JwtBearerOptions options)
@@ -67,7 +68,7 @@ namespace Microsoft.AspNetCore.Authentication
             private async Task OnTokenValidated(TokenValidatedContext context)
             {
                 JwtSecurityToken accessToken = context.SecurityToken as JwtSecurityToken;
-                TokenAcquisition.AddAccountToCache(accessToken);
+                _tokenAcquisition.AddAccountToCache(accessToken);
             }
 
             public void Configure(JwtBearerOptions options)

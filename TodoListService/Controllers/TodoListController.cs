@@ -26,11 +26,13 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Identity.Client;
 using Newtonsoft.Json;
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IdentityModel.Tokens;
 using System.Linq;
+using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Security.Claims;
@@ -44,6 +46,12 @@ namespace TodoListService.Controllers
     [Route("api/[controller]")]
     public class TodoListController : Controller
     {
+        public TodoListController(ITokenAcquisition tokenAcquisition)
+        {
+            this.tokenAcquisition = tokenAcquisition;
+        }
+        ITokenAcquisition tokenAcquisition;
+
         static ConcurrentBag<TodoItem> todoStore = new ConcurrentBag<TodoItem>();
 
         // GET: api/values
@@ -60,20 +68,39 @@ namespace TodoListService.Controllers
         {
             string owner = (User.FindFirst(ClaimTypes.NameIdentifier))?.Value;
 #if ENABLE_OBO
-            string ownerName = await CallGraphAPIOnBehalfOfUser();
+            string ownerName = CallGraphAPIOnBehalfOfUser().Result;
 #endif
-            todoStore.Add(new TodoItem { Owner = owner, Title = Todo.Title });
+            string title = string.IsNullOrWhiteSpace(ownerName) ? Todo.Title : $"{Todo.Title} ({ownerName})";
+            todoStore.Add(new TodoItem { Owner = owner,  Title = title });
 
         }
 
         public async Task<string> CallGraphAPIOnBehalfOfUser()
         {
+            string userObjectId = User.FindFirstValue("http://schemas.microsoft.com/identity/claims/objectidentifier");
+            string tenantId = User.FindFirstValue("http://schemas.microsoft.com/identity/claims/tenantid");
+            string userId = userObjectId + "." + tenantId;
+         //   throw new HttpResponseException(new HttpResponseMessage { StatusCode = HttpStatusCode.Unauthorized, ReasonPhrase = "The Scope claim does not contain 'user_impersonation' or scope claim not found" });
+
+            
             string[] scopes = new string[] { "user.read" };
 
             // we use MSAL.NET to get a token to call the API On Behalf Of the current user
-            string accessToken = await GetAccessTokenOnBehalfOfUser(scopes);
-            dynamic me = await CallGraphApiOnBehalfOfUser(accessToken);
-            return me.prefered_username;
+            string accessToken;
+            try
+            {
+                accessToken = await tokenAcquisition.GetAccessTokenOnBehalfOfUser(userId, scopes);
+                dynamic me = await CallGraphApiOnBehalfOfUser(accessToken);
+                return me.userPrincipalName;
+            }
+            catch (MsalException ex)
+            {
+            }
+            catch(Exception ex2)
+            {
+
+            }
+            return string.Empty;
         }
 
         private static async Task<dynamic> CallGraphApiOnBehalfOfUser(string accessToken)
@@ -83,33 +110,10 @@ namespace TodoListService.Controllers
             //
             HttpClient client = new HttpClient();
             client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
-            string json = await client.GetStringAsync("https://graph.microsoft.com/1.0/me");
-
+            HttpResponseMessage response = await client.GetAsync("https://graph.microsoft.com/beta/me");
+            string json = await response.Content.ReadAsStringAsync();
             dynamic me = JsonConvert.DeserializeObject(json);
             return me;
-        }
-
-        private static async Task<string> GetAccessTokenOnBehalfOfUser(string[] scopes)
-        {
-            var accounts = (await TokenAcquisition.Application.GetAccountsAsync()).ToArray();
-
-
-            string userName = ClaimsPrincipal.Current.FindFirst(ClaimTypes.Upn) != null ? ClaimsPrincipal.Current.FindFirst(ClaimTypes.Upn).Value : ClaimsPrincipal.Current.FindFirst(ClaimTypes.Email).Value;
-            string userId = ClaimsPrincipal.Current.FindFirst(ClaimTypes.NameIdentifier).Value;
-            string accessToken = null;
-            try
-            {
-                AuthenticationResult result = null;
-                IAccount account = await TokenAcquisition.Application.GetAccountAsync(userId);
-                result = await TokenAcquisition.Application.AcquireTokenSilentAsync(scopes, account);
-                accessToken = result.AccessToken;
-            }
-            catch (MsalException ex)
-            {
-                // TODO process the exception see if this is retryable etc ...
-            }
-
-            return accessToken;
         }
     }
 }

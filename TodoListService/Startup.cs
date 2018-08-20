@@ -34,6 +34,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using TodoListService.Extensions;
 
 namespace TodoListService
 {
@@ -54,6 +55,10 @@ namespace TodoListService
                 sharedOptions.DefaultScheme = JwtBearerDefaults.AuthenticationScheme;
             })
             .AddAzureAdBearer(options => Configuration.Bind("AzureAd", options));
+
+            // Token service
+            services.Configure<AzureAdOptions>(myoptions => { });
+            services.AddSingleton<ITokenAcquisition, TokenAcquisition>();
 
             services.AddMvc();
         }

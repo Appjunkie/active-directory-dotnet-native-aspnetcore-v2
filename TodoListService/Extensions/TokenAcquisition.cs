@@ -1,16 +1,22 @@
 ﻿using Microsoft.AspNetCore.Authentication;
+using Microsoft.Extensions.Options;
 using Microsoft.Identity.Client;
 using System.IdentityModel.Tokens.Jwt;
 using System.Linq;
 using System.Security.Claims;
+using System.Threading.Tasks;
 
 namespace TodoListService.Extensions
 {
-    public class TokenAcquisition
+    public class TokenAcquisition : ITokenAcquisition
     {
+        public TokenAcquisition(IOptions<AzureAdOptions> options)
+        {
+            GetOrCreateApplication(options.Value);
+        }
         static TokenCache userTokenCache = new TokenCache();
 
-        internal static void GetOrCreateApplication(AzureAdOptions options)
+        private void GetOrCreateApplication(AzureAdOptions options)
         {
             if (Application == null)
             {
@@ -31,8 +37,8 @@ namespace TodoListService.Extensions
         /// The goal of this method is, when a user is authenticated, to add the user's account in the MSAL.NET cache
         /// so that it can then be used for On-behalf-of calls.
         /// </summary>
-        /// <param name="userAccessToken">Access token for the user who has been using the API</param>
-        internal static async void AddAccountToCache(JwtSecurityToken jwtToken)
+        /// <param name="userAccessToken">Access token used to call this Web API</param>
+        public void AddAccountToCache(JwtSecurityToken jwtToken)
         {
             string userAccessTokenForThisApi = jwtToken.RawData;
             string[] scopes = new string[] { "user.read" };
@@ -40,7 +46,7 @@ namespace TodoListService.Extensions
             {
                 UserAssertion userAssertion = new UserAssertion(userAccessTokenForThisApi, "urn:ietf:params:oauth:grant-type:jwt-bearer");
 
-                // .Result to make sure that the cache is filled-in before the controller tries to get access
+                // .Result to make sure that the cache is filled-in before the controller tries to get access tokens
                 AuthenticationResult result = Application.AcquireTokenOnBehalfOfAsync(scopes, userAssertion).Result;
                 string acessTokenForGraphOBOUser = result.AccessToken;
             }
@@ -50,6 +56,27 @@ namespace TodoListService.Extensions
             }
         }
 
-        internal static ConfidentialClientApplication Application { get; private set; }
+        public ConfidentialClientApplication Application { get; private set; }
+
+        public async Task<string> GetAccessTokenOnBehalfOfUser(string userId, string[] scopes)
+        {
+            var accounts = (await Application.GetAccountsAsync()).ToArray();
+
+            
+            string accessToken = null;
+            try
+            {
+                AuthenticationResult result = null;
+                IAccount account = await Application.GetAccountAsync(userId);
+                result = await Application.AcquireTokenSilentAsync(scopes, account);
+                accessToken = result.AccessToken;
+            }
+            catch (MsalException ex)
+            {
+                // TODO process the exception see if this is retryable etc ...
+            }
+
+            return accessToken;
+        }
     }
 }
