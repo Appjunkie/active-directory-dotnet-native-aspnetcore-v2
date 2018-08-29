@@ -35,7 +35,6 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
-using IUser = Microsoft.Identity.Client.IAccount;
 
 namespace TodoListClient
 {
@@ -229,9 +228,10 @@ namespace TodoListClient
                 TodoList.ItemsSource = string.Empty;
 
                 // clear the cache
-                while(accounts.Any())
+                while (accounts.Any())
                 {
                     await app.RemoveAsync(accounts.First());
+                    accounts = await app.GetAccountsAsync();
                 }
                 // Also clear cookies from the browser control.
                 SignInButton.Content = signInString;
@@ -278,7 +278,7 @@ namespace TodoListClient
         }
 
         // Set user name to text box
-        private void SetUserName(IUser userInfo)
+        private void SetUserName(IAccount userInfo)
         {
             string userName = null;
 
